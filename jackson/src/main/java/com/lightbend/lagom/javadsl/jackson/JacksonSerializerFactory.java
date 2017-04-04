@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Lightbend Inc. <http://www.lightbend.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 package com.lightbend.lagom.javadsl.jackson;
 
@@ -33,18 +33,18 @@ import akka.util.ByteStringBuilder;
 @Singleton
 public class JacksonSerializerFactory implements SerializerFactory {
 
-    private final JacksonObjectMapperProvider objectMapperProvider;
+    private final ObjectMapper objectMapper;
 
     @Inject
     public JacksonSerializerFactory(ActorSystem system) {
-      objectMapperProvider = JacksonObjectMapperProvider.get(system);
+        this(JacksonObjectMapperProvider.get(system).objectMapper());
     }
 
     /**
      * For testing purposes
      */
-    public JacksonSerializerFactory(JacksonObjectMapperProvider provider) {
-      objectMapperProvider = provider;
+    public JacksonSerializerFactory(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
     }
 
 
@@ -62,7 +62,6 @@ public class JacksonSerializerFactory implements SerializerFactory {
         private final NegotiatedDeserializer<MessageEntity, ByteString> deserializer;
 
         public JacksonMessageSerializer(Type type) {
-            ObjectMapper objectMapper = objectMapperProvider.objectMapper(type);
             JavaType javaType = objectMapper.constructType(type);
             serializer = new JacksonSerializer(objectMapper.writerFor(javaType));
             deserializer = new JacksonDeserializer(objectMapper.readerFor(javaType));

@@ -1,13 +1,14 @@
 /**
- * Copyright (C) 2016 Lightbend Inc. <http://www.lightbend.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 package lagom
 
 import sbt._
 import sbtunidoc.Plugin.UnidocKeys._
-import sbtunidoc.Plugin.{ ScalaUnidoc, JavaUnidoc, Genjavadoc, javaUnidocSettings, baseGenjavadocExtraTasks }
+import sbtunidoc.Plugin.{Genjavadoc, JavaUnidoc, ScalaUnidoc, scalaJavaUnidocSettings}
 import sbt.Keys._
 import sbt.File
+import sbt.ScopeFilter.ProjectFilter
 
 object Scaladoc extends AutoPlugin {
 
@@ -20,7 +21,7 @@ object Scaladoc extends AutoPlugin {
 
   override lazy val projectSettings = {
     inTask(doc)(Seq(
-      scalacOptions in Compile <++= (version, baseDirectory in ThisBuild) map scaladocOptions,
+      scalacOptions in Compile ++= scaladocOptions(version.value, (baseDirectory in ThisBuild).value),
       autoAPIMappings := CliOptions.scaladocAutoAPI.get
     ))
   }
@@ -40,18 +41,20 @@ object UnidocRoot extends AutoPlugin {
 
   override def trigger = noTrigger
 
-  def settings(ignoreAggregates: Seq[ProjectReference], ignoreProjects: Seq[ProjectReference]) = {
-    val withoutAggregates = ignoreAggregates.foldLeft(inAnyProject) { _ -- inAggregates(_, transitive = true, includeRoot = true) }
-    val docProjectFilter = ignoreProjects.foldLeft(withoutAggregates) { _ -- inProjects(_) }
+  private def projectsAndDependencies(projects: Seq[ProjectReference]): ProjectFilter = {
+    //projects.map(p => inDependencies(p, transitive = true, includeRoot = true)).reduce(_ || _)
+    projects.map(p => inProjects(p)).reduce(_ || _)
+  }
 
+  def settings(javadslProjects: Seq[ProjectReference], scaladslProjects: Seq[ProjectReference]) = {
     inTask(unidoc)(Seq(
-      unidocProjectFilter in ScalaUnidoc := docProjectFilter,
-      unidocProjectFilter in JavaUnidoc := docProjectFilter,
+      unidocProjectFilter in ScalaUnidoc := projectsAndDependencies(scaladslProjects),
+      unidocProjectFilter in JavaUnidoc := projectsAndDependencies(javadslProjects),
       apiMappings in ScalaUnidoc := (apiMappings in (Compile, doc)).value
     ))
   }
 
-  def excludeJavadoc = Set("internal", "protobuf")
+  def excludeJavadoc = Set("internal", "protobuf", "scaladsl")
 
   private val allGenjavadocSources = Def.taskDyn {
     (sources in (Genjavadoc, doc)).all((unidocScopeFilter in (JavaUnidoc, unidoc)).value)
@@ -75,31 +78,63 @@ object UnidocRoot extends AutoPlugin {
       |  }
       |</script>""".stripMargin.replaceAll("\n", "\\\\n").replaceAll("\"", "\\\\\"")
 
-  override lazy val projectSettings = javaUnidocSettings ++ Seq(
+  /**
+    * JDK 1.8.0_121 introduced a restriction that prevents the inclusion of JS inside generated
+    * javadoc HTML files. That check can be disabled but requires an extra argument.
+    */
+  private val JavaBuildVersion = """1\.8\.0_(\d+)""".r
+  private val enableScriptsArgs = sys.props.get("java.version") match {
+    case Some(JavaBuildVersion(build)) if build.toInt < 121 => Nil
+    case _ => Seq("--allow-script-in-comments")
+  }
+
+  override lazy val projectSettings = scalaJavaUnidocSettings ++ Seq(
     unidocAllSources in (JavaUnidoc, unidoc) ++= allGenjavadocSources.value,
     unidocAllSources in (JavaUnidoc, unidoc) := {
       (unidocAllSources in (JavaUnidoc, unidoc)).value
         .map(_.filterNot(f => excludeJavadoc.exists(f.getCanonicalPath.contains)))
       },
+    scalacOptions in (ScalaUnidoc, unidoc) ++= Seq("-skip-packages", "com.lightbend.lagom.internal"),
     javacOptions in doc := Seq(
       "-windowtitle", "Lagom Services API",
       "-public",
-      "-group", "Services API", packageList("com.lightbend.lagom.javadsl", "com.lightbend.lagom.javadsl.api",
-          "com.lightbend.lagom.javadsl.client", "com.lightbend.lagom.javadsl.server",
-          "com.lightbend.lagom.javadsl.api.deser", "com.lightbend.lagom.javadsl.api.paging"),
-      "-group", "Persistence", packageList("com.lightbend.lagom.javadsl.persistence",
-          "com.lightbend.lagom.javadsl.persistence.cassandra",
-          "com.lightbend.lagom.javadsl.persistence.testkit"),
-      "-group", "Cluster", packageList("com.lightbend.lagom.javadsl.pubsub", "com.lightbend.lagom.javadsl.cluster"),
-
+      "-group", "Services API", packageList(
+        "com.lightbend.lagom.javadsl",
+        "com.lightbend.lagom.javadsl.api",
+        "com.lightbend.lagom.javadsl.client",
+        "com.lightbend.lagom.javadsl.server",
+        "com.lightbend.lagom.javadsl.api.deser",
+        "com.lightbend.lagom.javadsl.api.paging"
+      ),
+      "-group", "Persistence", packageList(
+        "com.lightbend.lagom.javadsl.persistence",
+        "com.lightbend.lagom.javadsl.persistence.cassandra",
+        "com.lightbend.lagom.javadsl.persistence.cassandra.testkit",
+        "com.lightbend.lagom.javadsl.persistence.jdbc",
+        "com.lightbend.lagom.javadsl.persistence.jdbc.testkit",
+        "com.lightbend.lagom.javadsl.persistence.jpa",
+        "com.lightbend.lagom.javadsl.persistence.testkit"
+      ),
+      "-group", "Cluster", packageList(
+        "com.lightbend.lagom.javadsl.pubsub",
+        "com.lightbend.lagom.javadsl.cluster"
+      ),
+      "-group", "Message Broker", packageList(
+        "com.lightbend.lagom.javadsl.api.broker",
+        "com.lightbend.lagom.javadsl.api.broker.kafka",
+        "com.lightbend.lagom.javadsl.broker",
+        "com.lightbend.lagom.javadsl.broker.kafka"
+      ),
       "-noqualifier", "java.lang",
-      "-encoding", "UTF-8", 
+      "-encoding", "UTF-8",
       "-source", "1.8",
       "-notimestamp",
       "-footer", framesHashScrollingCode
-    ))
+    )
+    ++ enableScriptsArgs
+  )
 
-  def packageList(names: String*): String = 
+  def packageList(names: String*): String =
     names.mkString(":")
 }
 

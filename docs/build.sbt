@@ -1,6 +1,6 @@
 
-val PlayVersion = "2.5.0"
-val AkkaVersion = "2.4.4"
+val PlayVersion = "2.5.4"
+val AkkaVersion = "2.4.12"
 
 val branch = {
   val rev = "git rev-parse --abbrev-ref HEAD".!!.trim
@@ -22,48 +22,80 @@ lazy val docs = project
       "org.apache.cassandra" % "cassandra-all" % "3.0.2" % "test",
       "junit" % "junit" % "4.12" % "test",
       "com.novocode" % "junit-interface" % "0.11" % "test",
-      "org.scalatest" %% "scalatest" % "2.2.4" % Test,
+      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
       "com.typesafe.play" %% "play-netty-server" % PlayVersion % Test,
-      "com.typesafe.play" %% "play-logback" % PlayVersion % Test
+      "com.typesafe.play" %% "play-logback" % PlayVersion % Test,
+      "org.apache.logging.log4j" % "log4j-api" % "2.7" % "test",
+      "com.softwaremill.macwire" %% "macros" % "2.2.5" % "provided",
+      "org.projectlombok" % "lombok" % "1.16.10",
+      "org.hibernate" % "hibernate-core" % "5.2.5.Final"
     ),
-    javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.8", "-target", "1.8", "-parameters", "-Xlint:unchecked", "-Xlint:deprecation"),
+    javacOptions ++= Seq("-encoding", "UTF-8", "-source", "1.8", "-target", "1.8", "-parameters", "-Xlint:unchecked", "-Xlint:deprecation"),
     testOptions in Test += Tests.Argument("-oDF"),
     testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
     // This is needed so that Java APIs that use immutables will typecheck by the Scala compiler
     compileOrder in Test := CompileOrder.JavaThenScala,
 
-    markdownDocsTitle := "Lagom",
-    markdownDocPaths += {
-      // What I'd really like to do here is trigger the unidoc task in the root project externally,
-      // however I tried that and for some reason it doesn't work.  So instead we'll just depend on
-      // it being run manually.
+    markdownDocumentation := {
       val javaUnidocTarget = parentDir / "target" / "javaunidoc"
-      streams.value.log.info(s"Serving javadocs from $javaUnidocTarget. Rerun unidoc in root project to refresh")
-      javaUnidocTarget -> "api"
+      val unidocTarget = parentDir / "target" / "unidoc"
+      streams.value.log.info(s"Serving javadocs from $javaUnidocTarget and scaladocs from $unidocTarget. Rerun unidoc in root project to refresh")
+      Seq(
+        Documentation("java", Seq(
+          DocPath(baseDirectory.value / "manual" / "common", "."),
+          DocPath(baseDirectory.value / "manual" / "java", "."),
+          DocPath(javaUnidocTarget, "api")
+        ), "Home.html", "Java Home", Map("api/index.html" -> "API Documentation")),
+        Documentation("scala", Seq(
+          DocPath(baseDirectory.value / "manual" / "common", "."),
+          DocPath(baseDirectory.value / "manual" / "scala", "."),
+          DocPath(unidocTarget, "api")
+        ), "Home.html", "Scala Home", Map("api/index.html" -> "API Documentation"))
+      )
     },
-    markdownApiDocs := Seq(
-        "api/index.html" -> "Java"
-    ),
     markdownUseBuiltinTheme := false,
     markdownTheme := Some("lagom.LagomMarkdownTheme"),
     markdownGenerateTheme := Some("bare"),
     markdownGenerateIndex := true,
-    markdownSourceUrl := Some(url(s"https://github.com/lagom/lagom/tree/$branch/docs/manual/")),
+    markdownStageIncludeWebJars := false,
+    markdownSourceUrl := Some(url(s"https://github.com/lagom/lagom/edit/$branch/docs/manual/"))
 
-    markdownS3CredentialsHost := "downloads.typesafe.com.s3.amazonaws.com",
-    markdownS3Bucket := Some("downloads.typesafe.com"),
-    markdownS3Prefix := "rp/lagom/",
-    markdownS3Region := awscala.Region0.US_EAST_1,
-    excludeFilter in markdownS3PublishDocs ~= {
-      _ || "*.scala" || "*.java" || "*.sbt" || "*.conf" || "*.md" || "*.toc"
-    }
-
-  ).dependsOn(serviceIntegrationTests, immutables % "test->compile", theme % "run-markdown")
+  )
+  .dependsOn(
+    serviceIntegrationTestsJavadsl,
+    persistenceJdbcJavadsl,
+    persistenceJpaJavadsl,
+    serviceIntegrationTestsScaladsl,
+    persistenceCassandraScaladsl,
+    persistenceJdbcScaladsl,
+    testkitJavadsl,
+    testkitScaladsl,
+    brokerScaladsl,
+    playJson,
+    kafkaBroker,
+    pubsubScaladsl,
+    immutables % "test->compile",
+    theme % "run-markdown",
+    devmodeScaladsl
+  )
 
 lazy val parentDir = Path.fileProperty("user.dir").getParentFile
 
 // Depend on the integration tests, they should bring everything else in
-lazy val serviceIntegrationTests = ProjectRef(parentDir, "service-integration-tests")
+lazy val serviceIntegrationTestsJavadsl = ProjectRef(parentDir, "integration-tests-javadsl")
+lazy val serviceIntegrationTestsScaladsl = ProjectRef(parentDir, "integration-tests-scaladsl")
+lazy val persistenceJdbcJavadsl = ProjectRef(parentDir, "persistence-jdbc-javadsl")
+lazy val persistenceJdbcScaladsl = ProjectRef(parentDir, "persistence-jdbc-scaladsl")
+lazy val persistenceJpaJavadsl = ProjectRef(parentDir, "persistence-jpa-javadsl")
+lazy val persistenceCassandraScaladsl = ProjectRef(parentDir, "persistence-cassandra-scaladsl")
+lazy val testkitJavadsl = ProjectRef(parentDir, "testkit-javadsl")
+lazy val testkitScaladsl = ProjectRef(parentDir, "testkit-scaladsl")
+lazy val playJson = ProjectRef(parentDir, "play-json")
+lazy val kafkaBroker = ProjectRef(parentDir, "kafka-broker")
+lazy val brokerScaladsl = ProjectRef(parentDir, "broker-scaladsl")
+lazy val devmodeScaladsl = ProjectRef(parentDir, "devmode-scaladsl")
+lazy val pubsubScaladsl = ProjectRef(parentDir, "pubsub-scaladsl")
+
 // Needed to compile test classes using immutables annotation
 lazy val immutables = ProjectRef(parentDir, "immutables")
 
@@ -96,10 +128,6 @@ lazy val theme = project
     scalaVersion := "2.11.7",
     resolvers += Resolver.typesafeIvyRepo("releases"),
     libraryDependencies ++= Seq(
-      "com.lightbend.markdown" %% "lightbend-markdown-server" % LightbendMarkdownVersion,
-      "org.webjars" % "jquery" % "1.9.0",
-      "org.webjars" % "prettify" % "4-Mar-2013"
-    ),
-    pipelineStages in Assets := Seq(uglify),
-    LessKeys.compress := true
+      "com.lightbend.markdown" %% "lightbend-markdown-server" % LightbendMarkdownVersion
+    )
   )

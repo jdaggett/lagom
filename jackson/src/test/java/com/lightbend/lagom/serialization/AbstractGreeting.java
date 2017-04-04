@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Lightbend Inc. <http://www.lightbend.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 package com.lightbend.lagom.serialization;
 
@@ -14,6 +14,9 @@ import org.immutables.value.Value;
 @ImmutableStyle
 @JsonDeserialize(as = Greeting.class)
 public abstract class AbstractGreeting implements CompressedJsonable {
+
+  private static final long serialVersionUID = 1L;
+
   @Value.Parameter
   public abstract String getMessage();
 

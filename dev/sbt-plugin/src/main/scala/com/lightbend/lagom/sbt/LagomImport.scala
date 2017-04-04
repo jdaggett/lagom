@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Lightbend Inc. <http://www.lightbend.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 package com.lightbend.lagom.sbt
 
@@ -20,11 +20,32 @@ object LagomImport {
   // Scoped to `Provided` because it's needed only at compile-time. 
   val lagomJavadslImmutables = component("lagom-javadsl-immutables") % Provided
   val lagomJavadslJackson = component("lagom-javadsl-jackson")
+  val lagomJavadslBroker = component("lagom-javadsl-broker")
+  val lagomJavadslKafkaClient = component("lagom-javadsl-kafka-client")
+  val lagomJavadslKafkaBroker = component("lagom-javadsl-kafka-broker")
   val lagomJavadslPersistence = component("lagom-javadsl-persistence")
+  val lagomJavadslPersistenceCassandra = component("lagom-javadsl-persistence-cassandra")
+  val lagomJavadslPersistenceJdbc = component("lagom-javadsl-persistence-jdbc")
+  val lagomJavadslPersistenceJpa = component("lagom-javadsl-persistence-jpa")
   val lagomJavadslPubSub = component("lagom-javadsl-pubsub")
   val lagomJavadslServer = component("lagom-javadsl-server")
   val lagomJavadslTestKit = component("lagom-javadsl-testkit") % Test
   val lagomLogback = component(lagomLogbackModuleName)
+  val lagomLog4j2 = component("lagom-log4j2")
+
+  val lagomScaladslApi = component("lagom-scaladsl-api")
+  val lagomScaladslClient = component("lagom-scaladsl-client")
+  val lagomScaladslServer = component("lagom-scaladsl-server")
+  val lagomScaladslDevMode = component("lagom-scaladsl-dev-mode")
+  val lagomScaladslCluster = component("lagom-scaladsl-cluster")
+  val lagomScaladslBroker = component("lagom-scaladsl-broker")
+  val lagomScaladslKafkaClient = component("lagom-scaladsl-kafka-client")
+  val lagomScaladslKafkaBroker = component("lagom-scaladsl-kafka-broker")
+  val lagomScaladslPersistence = component("lagom-scaladsl-persistence")
+  val lagomScaladslPersistenceCassandra = component("lagom-scaladsl-persistence-cassandra")
+  val lagomScaladslPersistenceJdbc = component("lagom-scaladsl-persistence-jdbc")
+  val lagomScaladslPubSub = component("lagom-scaladsl-pubsub")
+  val lagomScaladslTestKit = component("lagom-scaladsl-testkit") % Test
 
   val lagomJUnitDeps = Seq(
     "junit" % "junit" % "4.12" % Test,

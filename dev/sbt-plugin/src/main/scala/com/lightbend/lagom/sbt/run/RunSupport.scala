@@ -1,28 +1,17 @@
 /*
- * Copyright (C) 2016 Lightbend Inc. <http://www.lightbend.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 package com.lightbend.lagom.sbt.run
 
-import java.util
-
+import com.lightbend.lagom.dev.Reloader
+import com.lightbend.lagom.dev.Reloader.{ CompileFailure, CompileResult, CompileSuccess, Source }
 import com.lightbend.lagom.sbt.Internal
-import com.lightbend.lagom.sbt.LagomImport
-import com.lightbend.lagom.sbt.LagomPlugin
 import com.lightbend.lagom.sbt.LagomPlugin.autoImport._
 import com.lightbend.lagom.sbt.LagomReloadableService.autoImport._
-import com.lightbend.lagom.sbt.core.Build
-import com.lightbend.lagom.sbt.server.ReloadableServer
-import play.core.BuildLink
-import play.runsupport.NamedURLClassLoader
-import play.runsupport.classloader.{ ApplicationClassLoaderProvider, DelegatingClassLoader }
 import sbt._
 import sbt.Keys._
-
 import play.api.PlayException
 import play.sbt.PlayExceptions._
-import com.lightbend.lagom.sbt.run.Reloader.{ CompileResult, CompileSuccess, CompileFailure, Source, SourceMap }
-
-import scala.collection.JavaConverters._
 
 private[sbt] object RunSupport {
 
@@ -42,6 +31,7 @@ private[sbt] object RunSupport {
     val classpath = (devModeDependencies.value ++ (externalDependencyClasspath in Runtime).value).distinct.files
 
     Reloader.startDevMode(
+      scalaInstance.value.loader,
       classpath,
       reloadCompile,
       lagomClassLoaderDecorator.value,
@@ -49,7 +39,8 @@ private[sbt] object RunSupport {
       lagomFileWatchService.value,
       baseDirectory.value,
       extraConfigs.toSeq ++ lagomDevSettings.value,
-      lagomServicePort.value
+      lagomServicePort.value,
+      RunSupport
     )
   }
 
@@ -59,62 +50,14 @@ private[sbt] object RunSupport {
 
     val classpath = (devModeDependencies.value ++ (fullClasspath in Runtime).value).distinct
 
-    val buildLinkSettings = (extraConfigs.toSeq ++ lagomDevSettings.value).toMap.asJava
+    val buildLinkSettings = extraConfigs.toSeq ++ lagomDevSettings.value
 
-    val buildLoader = this.getClass.getClassLoader
-    lazy val delegatingLoader: ClassLoader = new DelegatingClassLoader(null, Build.sharedClasses, buildLoader, new ApplicationClassLoaderProvider {
-      def get: ClassLoader = { applicationLoader }
-    })
-    lazy val applicationLoader = new NamedURLClassLoader(
-      "LagomApplicationLoader",
-      classpath.map(_.data.toURI.toURL).toArray, delegatingLoader
-    )
-
-    val _buildLink = new BuildLink {
-      private val initialized = new java.util.concurrent.atomic.AtomicBoolean(false)
-      override def runTask(task: String): AnyRef = throw new UnsupportedOperationException("Run task not support in Lagom")
-      override def reload(): AnyRef = {
-        if (initialized.compareAndSet(false, true)) applicationLoader
-        else null // this means nothing to reload
-      }
-      override def projectPath(): File = baseDirectory.value
-      override def settings(): util.Map[String, String] = buildLinkSettings
-      override def forceReload(): Unit = ()
-      override def findSource(className: String, line: Integer): Array[AnyRef] = null
-    }
-
-    val mainClass = applicationLoader.loadClass("play.core.server.LagomReloadableDevServerStart")
-    val mainDev = mainClass.getMethod("mainDevHttpMode", classOf[BuildLink], classOf[Int])
-    val server = mainDev.invoke(null, _buildLink, lagomServicePort.value: java.lang.Integer).asInstanceOf[ReloadableServer]
-
-    server.reload() // it's important to initialize the server
-
-    new Reloader.DevServer {
-      val buildLink: BuildLink = _buildLink
-
-      /** Allows to register a listener that will be triggered a monitored file is changed. */
-      def addChangeListener(f: Unit => Unit): Unit = ()
-
-      /** Reloads the application.*/
-      def reload(): Unit = ()
-
-      /** URL at which the application is running (if started) */
-      def url(): String = server.mainAddress().getHostName + ":" + server.mainAddress().getPort
-
-      def close(): Unit = server.stop()
-    }
+    Reloader.startNoReload(scalaInstance.value.loader, classpath.map(_.data), baseDirectory.value, buildLinkSettings,
+      lagomServicePort.value)
   }
 
   private def devModeDependencies = Def.task {
-    cassandraDependencyClasspath.value ++ (managedClasspath in Internal.Configs.DevRuntime).value
-  }
-
-  private def cassandraDependencyClasspath = Def.task {
-    val projectDependencies = (allDependencies in Runtime).value
-    if (projectDependencies.exists(_ == LagomImport.lagomJavadslPersistence))
-      (managedClasspath in Internal.Configs.CassandraRuntime).value
-    else
-      Seq.empty
+    (managedClasspath in Internal.Configs.DevRuntime).value
   }
 
   def compile(reloadCompile: () => Result[sbt.inc.Analysis], classpath: () => Result[Classpath], streams: () => Option[Streams]): CompileResult = {
@@ -129,7 +72,7 @@ private[sbt] object RunSupport {
       }.fold(identity, identity)
   }
 
-  def sourceMap(analysis: sbt.inc.Analysis): SourceMap = {
+  def sourceMap(analysis: sbt.inc.Analysis): Map[String, Source] = {
     analysis.apis.internal.foldLeft(Map.empty[String, Source]) {
       case (sourceMap, (file, source)) => sourceMap ++ {
         source.api.definitions map { d => d.name -> Source(file, originalSource(file)) }
@@ -161,7 +104,7 @@ private[sbt] object RunSupport {
 
   def getScopedKey(incomplete: Incomplete): Option[ScopedKey[_]] = incomplete.node flatMap {
     case key: ScopedKey[_] => Option(key)
-    case task: Task[_] => task.info.attributes get taskDefinitionKey
+    case task: Task[_]     => task.info.attributes get taskDefinitionKey
   }
 
   def getProblems(incomplete: Incomplete, streams: Option[Streams]): Seq[xsbti.Problem] = {
@@ -218,7 +161,7 @@ private[sbt] object RunSupport {
   def problems(es: Seq[Throwable]): Seq[xsbti.Problem] = {
     es flatMap {
       case cf: xsbti.CompileFailed => cf.problems
-      case _ => Nil
+      case _                       => Nil
     }
   }
 

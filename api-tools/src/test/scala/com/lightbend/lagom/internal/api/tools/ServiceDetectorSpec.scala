@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2016 Lightbend Inc. <http://www.lightbend.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 package com.lightbend.lagom.internal.api.tools
 
+import com.lightbend.lagom.api.tools.tests.scaladsl.StubServiceLoader
+import com.lightbend.lagom.internal.javadsl.server.JavadslServiceDiscovery
 import com.lightbend.lagom.javadsl.api.{ Descriptor, Service }
 import org.scalatest._
 import play.api.libs.json.Json
@@ -11,7 +13,7 @@ class ServiceDetectorSpec extends WordSpec with Matchers with Inside {
 
   "The service detector" should {
 
-    "resolve the service descriptions for a lagom project" in {
+    "resolve the service descriptions for a LagomJava project" in {
       val expectedJsonString =
         """
           |[
@@ -35,8 +37,36 @@ class ServiceDetectorSpec extends WordSpec with Matchers with Inside {
           |]
         """.stripMargin
 
-      val classLoader = Thread.currentThread().getContextClassLoader()
-      val actualJsonString = ServiceDetector.services(classLoader)
+      val javaServiceDiscovery = "com.lightbend.lagom.internal.javadsl.server.JavadslServiceDiscovery"
+      val actualJsonString = ServiceDetector.services(this.getClass.getClassLoader, javaServiceDiscovery)
+      Json.parse(actualJsonString) shouldBe Json.parse(expectedJsonString)
+    }
+
+    "resolve the service descriptions for a LagomScala project using `describeServices` (different list than `bindServices`)" in {
+      val expectedJsonString =
+        """
+          |[
+          |  {
+          |    "name": "/aclservice",
+          |    "acls": [
+          |      {
+          |        "method": "GET",
+          |        "pathPattern": "\\Q/scala-mocks/\\E([^/]+)"
+          |      },
+          |      {
+          |        "method": "POST",
+          |        "pathPattern": "\\Q/scala-mocks\\E"
+          |      }
+          |    ]
+          |  },
+          |  {
+          |    "name": "/noaclservice",
+          |    "acls": []
+          |  }
+          |]
+        """.stripMargin
+
+      val actualJsonString = ServiceDetector.services(this.getClass.getClassLoader, classOf[StubServiceLoader].getName)
       Json.parse(actualJsonString) shouldBe Json.parse(expectedJsonString)
     }
 
@@ -46,7 +76,7 @@ class ServiceDetectorSpec extends WordSpec with Matchers with Inside {
       }
       class ServiceImpl extends ServiceInterface
 
-      ServiceDetector.serviceInterfaceResolver(classOf[ServiceImpl]) shouldBe Some(classOf[ServiceInterface])
+      new JavadslServiceDiscovery().serviceInterfaceResolver(classOf[ServiceImpl]) shouldBe Some(classOf[ServiceInterface])
     }
 
     "resolve the parent service interface that has implemented the descriptor method" in {
@@ -56,7 +86,7 @@ class ServiceDetectorSpec extends WordSpec with Matchers with Inside {
       trait ChildServiceInterface extends ParentServiceInterface
       class ServiceImpl extends ChildServiceInterface
 
-      ServiceDetector.serviceInterfaceResolver(classOf[ServiceImpl]) shouldBe Some(classOf[ParentServiceInterface])
+      new JavadslServiceDiscovery().serviceInterfaceResolver(classOf[ServiceImpl]) shouldBe Some(classOf[ParentServiceInterface])
     }
 
     "resolve the child service interface that has implemented the descriptor method" in {
@@ -66,7 +96,7 @@ class ServiceDetectorSpec extends WordSpec with Matchers with Inside {
       }
       class ServiceImpl extends ChildServiceInterface
 
-      ServiceDetector.serviceInterfaceResolver(classOf[ServiceImpl]) shouldBe Some(classOf[ChildServiceInterface])
+      new JavadslServiceDiscovery().serviceInterfaceResolver(classOf[ServiceImpl]) shouldBe Some(classOf[ChildServiceInterface])
     }
 
     def minify(s: String) =

@@ -9,10 +9,10 @@ lazy val lagomProj = (project in file("lagomProj")).enablePlugins(LagomJava)
   .settings(
     name := "lagom-dist-proj",
     version := "1.0-SNAPSHOT",
-    libraryDependencies ++= Seq(lagomJavadslPersistence, lagomSbtScriptedLibrary)
+    libraryDependencies ++= Seq(lagomJavadslPersistenceCassandra, lagomSbtScriptedLibrary)
   )
 
-lazy val playProj = (project in file("playProj")).enablePlugins(PlayScala, LagomPlay)
+lazy val playProj = (project in file("playProj")).enablePlugins(PlayJava, LagomPlay)
   .settings(
     name := "play-dist-proj",
     version := "1.0-SNAPSHOT",
@@ -53,9 +53,7 @@ InputKey[Unit]("absence") := {
 }
 
 lazy val checkDevRuntimeClasspath = inputKey[Unit]("Checks presence of a jar in the DevRuntime classpath")
-lazy val checkCassandraRuntimeClasspath = inputKey[Unit]("Checks presence of a jar in the CassandraRuntime classpath")
 checkDevRuntimeClasspath <<= checkDevClasspathTask(Internal.Configs.DevRuntime)
-checkCassandraRuntimeClasspath <<= checkDevClasspathTask(Internal.Configs.CassandraRuntime)
 
 def checkDevClasspathTask(config: Configuration): Def.Initialize[InputTask[Unit]] = Def.inputTaskDyn {
   val parsed = Def.spaceDelimited().parsed

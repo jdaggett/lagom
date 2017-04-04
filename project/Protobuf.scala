@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package lagom
@@ -22,7 +22,7 @@ object Protobuf {
     paths := Seq((sourceDirectory in Compile).value, (sourceDirectory in Test).value).map(_ / "protobuf"),
     outputPaths := Seq((sourceDirectory in Compile).value, (sourceDirectory in Test).value).map(_ / "java"),
     protoc := "protoc",
-    protocVersion := "2.5.0",
+    protocVersion := "2.6.1",
     generate := {
       val sourceDirs = paths.value
       val targetDirs = outputPaths.value

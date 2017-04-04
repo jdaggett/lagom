@@ -4,18 +4,26 @@ jdk:
   - oraclejdk8
 env:
   matrix:
-    - SCRIPT="sbt -jvm-opts .travis-jvmopts test"
-    - SCRIPT="sbt -jvm-opts .travis-jvmopts publishLocal scripted"
-    - SCRIPT="sbt -jvm-opts .travis-jvmopts unidoc && cd docs && sbt -jvm-opts .travis-jvmopts markdownValidateDocs test markdownEvaluateSbtFiles"
+    - SCRIPT=test
+    - SCRIPT=test-sbt
+    - SCRIPT=test-maven
+    - SCRIPT=test-documentation
+    - SCRIPT=test-code-style
 # important to use eval, otherwise "&&" is passed as an argument to sbt rather than being processed by bash
-script: eval $SCRIPT
+script: bin/$SCRIPT
+before_install:
+    # See https://github.com/travis-ci/travis-ci/issues/4629#issuecomment-239493916
+    - rm ~/.m2/settings.xml
 cache:
   directories:
     - $HOME/.ivy2/cache
+    - $HOME/.sbt/boot/scala*
+    - $HOME/.m2/repository
 before_cache:
   # Ensure changes to the cache aren't persisted
   - rm -rf $HOME/.ivy2/cache/com.lightbend.lagom/*
   - rm -rf $HOME/.ivy2/cache/scala_*/sbt_*/com.lightbend.lagom/*
+  - rm -r $HOME/.m2/repository/com/lightbend/lagom/*
   # Delete all ivydata files since ivy touches them on each build
   - find $HOME/.ivy2/cache -name "ivydata-*.properties" | xargs rm
 notifications:

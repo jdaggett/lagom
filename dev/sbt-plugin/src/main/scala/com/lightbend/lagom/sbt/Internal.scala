@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Lightbend Inc. <http://www.lightbend.com>
+ * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
  */
 package com.lightbend.lagom.sbt
 
@@ -9,7 +9,6 @@ import play.sbt.PlayInteractionMode
 object Internal {
   object Configs {
     val DevRuntime = config("dev-mode").hide extend Runtime
-    val CassandraRuntime = config("dev-mode-cassandra").hide extend Runtime
   }
 
   object Keys {
